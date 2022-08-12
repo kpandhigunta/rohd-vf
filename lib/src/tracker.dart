@@ -121,7 +121,7 @@ class Tracker<TrackableType extends Trackable> {
   /// incomplete/invalid format.
   Future<void> terminate() async {
     for (var dumper in _dumpers) {
-      dumper.terminate();
+      await dumper.terminate();
     }
   }
 }
@@ -134,12 +134,15 @@ abstract class _TrackerDumper<TrackableType extends Trackable> {
 
   /// The [File] to dump output to.
   final File _file;
+  late final IOSink sink;
 
   /// Constructs a new [_TrackerDumper], erasing any existing file with the same name.
   _TrackerDumper(String fileName, List<TrackerField> fields)
       : _fields = List.from(fields),
-        _file = File(fileName) {
-    _file.writeAsStringSync(''); // empty out existing files
+        _file = File(fileName){
+    sink = _file.openWrite();
+    sink.write('');
+    // _file.writeAsStringSync(''); // empty out existing files
   }
 
   /// Prints [message] to [_file], with a new line at the end.
@@ -147,7 +150,8 @@ abstract class _TrackerDumper<TrackableType extends Trackable> {
     if (_hasTerminated) {
       throw Exception('Log has already terminated, cannot log more!');
     }
-    _file.writeAsStringSync(message + '\n', mode: FileMode.append);
+    sink.write(message + '\n');
+    // _file.writeAsStringSync();
   }
 
   /// Logs [trackable] into the log controlled by this [_TrackerDumper].
@@ -160,11 +164,13 @@ abstract class _TrackerDumper<TrackableType extends Trackable> {
   /// Performs any clean-up or file ending at the end of the log.
   ///
   /// No more can be logged after this is called.
-  void terminate() {
+  Future<void> terminate() async{
+    // await sink.flush();
     if (_hasTerminated) {
       throw Exception('Already terminated.');
     }
     _hasTerminated = true;
+    await sink.close();
   }
 }
 
@@ -293,8 +299,8 @@ class _JsonDumper<TrackableType extends Trackable>
   }
 
   @override
-  void terminate() {
+  Future<void> terminate() async{
     _recordEnd();
-    super.terminate();
+    await super.terminate();
   }
 }
